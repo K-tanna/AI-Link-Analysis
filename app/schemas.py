@@ -178,6 +178,9 @@ class Meta(_Model):
     input_tokens: int = 0
     output_tokens: int = 0
     estimated_cost_usd: Optional[float] = None
+    source_type: Literal["website", "social_profile"] = "website"
+    platform: Optional[str] = None
+    data_quality: Literal["good", "limited"] = "good"
     pages_analyzed: list[str] = []
     warnings: list[str] = []
     disclaimers: list[str] = []

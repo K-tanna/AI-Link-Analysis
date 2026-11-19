@@ -11,6 +11,7 @@ from app.errors import (
     InvalidURLError,
     LLMError,
     LLMOutputError,
+    SocialContentUnavailableError,
     WebsiteFetchError,
 )
 from app.main import app, get_analysis_service
@@ -19,6 +20,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.llm_service import LLMResult, LLMService, extract_json
 from app.services.website_extractor import WebsiteExtractor, parse_html, pick_priority_links
 from app.utils import validators
+from app.utils.social import detect_social, SocialInfo
 from app.utils.validators import normalize_url, validate_public_url
 
 # --------------------------------------------------------------------------- fixtures / fakes
@@ -53,6 +55,22 @@ def site_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"%PDF", headers={"content-type": "application/pdf"})
     if host in ("rival-one.com", "rival-two.com"):
         return httpx.Response(200, text=RIVAL_HTML.format(n=host), headers={"content-type": "text/html"})
+    if host in ("instagram.com", "www.instagram.com"):
+        if path == "/crestspot":
+            html = (
+                "<html><head>"
+                "<title>Crest Spot (@crestspot) • Instagram photos and videos</title>"
+                '<meta property="og:title" content="Crest Spot (@crestspot) • Instagram photos and videos">'
+                '<meta property="og:description" content="1,200 Followers, 350 Following, 45 Posts - Crest Spot is a creative agency based in Mumbai crafting web and brand experiences.">'
+                "</head><body><p>Crest Spot on Instagram</p></body></html>"
+            )
+            return httpx.Response(200, text=html, headers={"content-type": "text/html; charset=utf-8"})
+        if path == "/loginwall":
+            return httpx.Response(302, headers={"location": "https://www.instagram.com/accounts/login/"})
+        if path == "/accounts/login/":
+            return httpx.Response(200, text="<html><head><title>Login • Instagram</title></head><body>Log in to see photos</body></html>", headers={"content-type": "text/html; charset=utf-8"})
+        if path == "/emptyprofile":
+            return httpx.Response(200, text="<html><head><title>Instagram</title></head><body></body></html>", headers={"content-type": "text/html; charset=utf-8"})
     return httpx.Response(404)
 
 
@@ -464,3 +482,72 @@ def test_provider_outage_returns_502(client_factory):
 
 def test_health_endpoint(client_factory):
     assert client_factory(build_service()).get("/health").json() == {"status": "ok"}
+
+
+# --------------------------------------------------------------------------- Social Profile Tests
+def test_detect_social_platforms():
+    # Instagram
+    s1 = detect_social("https://www.instagram.com/crestspot")
+    assert s1 is not None and s1.platform == "Instagram" and s1.handle == "crestspot"
+
+    # Instagram reserved segment (e.g. reels)
+    s2 = detect_social("https://www.instagram.com/reel/C3abc123")
+    assert s2 is not None and s2.platform == "Instagram" and s2.handle is None
+
+    # X / Twitter
+    s3 = detect_social("https://x.com/openai")
+    assert s3 is not None and s3.platform == "X" and s3.handle == "openai"
+
+    s4 = detect_social("https://twitter.com/elonmusk")
+    assert s4 is not None and s4.platform == "X" and s4.handle == "elonmusk"
+
+    # YouTube
+    s5 = detect_social("https://www.youtube.com/@mkbhd")
+    assert s5 is not None and s5.platform == "YouTube" and s5.handle == "mkbhd"
+
+    s6 = detect_social("https://www.youtube.com/c/Veritasium")
+    assert s6 is not None and s6.platform == "YouTube" and s6.handle == "Veritasium"
+
+    # LinkedIn
+    s7 = detect_social("https://www.linkedin.com/company/google")
+    assert s7 is not None and s7.platform == "LinkedIn" and s7.handle == "google"
+
+    # Facebook
+    s8 = detect_social("https://www.facebook.com/meta")
+    assert s8 is not None and s8.platform == "Facebook" and s8.handle == "meta"
+
+    # Standard website (not social)
+    assert detect_social("https://example.com/crestspot") is None
+    assert detect_social("https://crestspot.com") is None
+
+
+def test_social_profile_analysis_success(client_factory):
+    llm = FakeLLM()
+    r = client_factory(build_service(llm)).post("/link-analysis", json={"url": "https://www.instagram.com/crestspot"})
+    assert r.status_code == 200
+    data = r.json()
+    meta = data["meta"]
+    assert meta["source_type"] == "social_profile"
+    assert meta["platform"] == "Instagram"
+    assert meta["data_quality"] == "limited"
+    assert len(meta["warnings"]) > 0
+    assert "limited public metadata" in meta["warnings"][0]
+
+
+def test_social_profile_login_wall_returns_422(client_factory):
+    llm = FakeLLM()
+    r = client_factory(build_service(llm)).post("/link-analysis", json={"url": "https://www.instagram.com/loginwall"})
+    assert r.status_code == 422
+    data = r.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "social_profile_unavailable"
+    assert "login" in data["error"]["message"].lower()
+
+
+def test_social_profile_empty_content_returns_422(client_factory):
+    llm = FakeLLM()
+    r = client_factory(build_service(llm)).post("/link-analysis", json={"url": "https://www.instagram.com/emptyprofile"})
+    assert r.status_code == 422
+    data = r.json()
+    assert data["success"] is False
+    assert data["error"]["code"] == "social_profile_unavailable"

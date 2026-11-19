@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from app.errors import AppError
 from app.services.website_extractor import WebsiteExtractor
+from app.utils.social import detect_social
 from app.utils.validators import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,10 @@ logger = logging.getLogger(__name__)
 MAX_COMPETITORS = 5
 
 
-def _host_key(url: str) -> str:
+def _identity(url: str) -> str:
+    social = detect_social(url)
+    if social:
+        return f"{social.platform}:{(social.handle or url).lower()}"
     host = (urlsplit(url).hostname or "").lower()
     return host[4:] if host.startswith("www.") else host
 
@@ -29,7 +33,7 @@ class CompetitorService:
 
     async def build_context(self, candidates: list[dict], own_url: str) -> list[dict]:
         """Return de-duplicated candidates enriched with homepage evidence where reachable."""
-        own_host = _host_key(own_url)
+        own_identity = _identity(own_url)
         seen: set[str] = set()
         selected: list[dict] = []
 
@@ -43,7 +47,7 @@ class CompetitorService:
                     website = normalize_url(cand["website"])
                 except AppError:
                     website = None
-            if website and _host_key(website) == own_host:
+            if website and _identity(website) == own_identity:
                 continue  # the brand itself is not its own competitor
             seen.add(name.lower())
             selected.append({"name": name, "website": website, "reason": (cand.get("reason") or "")[:200]})
@@ -52,7 +56,7 @@ class CompetitorService:
 
         async def check(item: dict) -> dict:
             item = dict(item, homepage_checked=False, homepage_title="", homepage_description="")
-            if not item["website"]:
+            if not item["website"] or detect_social(item["website"]):
                 return item
             try:
                 snippet = await self.extractor.fetch_snippet(item["website"])

@@ -78,6 +78,7 @@ Requirements:
 - competitor_candidates: 3-5 real competitors (see rules). Do not include the brand itself.
 - target_audience: ground in the site's own language; include geographic_focus only if the site indicates one.
 
+{source_note}
 <website_data>
 {website}
 </website_data>"""
@@ -109,7 +110,9 @@ Requirements:
 - strengths and opportunities must refer to THIS brand's real offering.
 - Write clean prose. Never mention input field names (such as "reason" or "homepage_checked") in your text, and add no source tags. The only allowed annotation is "(inferred)" on a claim the evidence does not support.
 - Proofread: no typos.
+- If the competitors list below is empty, return "competitors": [] and "comparison": [] and fill only strengths and opportunities.
 
+{source_note}
 <brand_profile>
 {profile}
 </brand_profile>
@@ -117,6 +120,20 @@ Requirements:
 <competitors>
 {competitors}
 </competitors>"""
+
+SOCIAL_NOTE_PROFILE = """
+[source: social_profile]
+This URL is a {platform} profile{handle_part}. The website data below is ONLY the public profile metadata the platform exposes (title and bio snippet). It is not a company website. These rules OVERRIDE any conflicting rule above:
+- Analyse the account or brand BEHIND the profile. Never describe {platform} itself, its login page or its features.
+- State only what the bio/metadata supports. If it does not say what the account sells or does, say so in brand.summary and mark every service source="inferred". Never invent products, follower counts, posts, locations or credentials.
+- competitor_candidates: only brands or accounts in the SAME niche the bio states, each with its own website domain (null if it only has a social account). If the niche cannot be determined from the data, return an empty list. Do not default to social-media-management tools such as Buffer, Later or SocialPilot unless the account itself runs a social-media-management business.
+- seo_improvements means PROFILE DISCOVERABILITY on {platform}: primary/secondary/long-tail keywords are search and hashtag terms people use to find this kind of account; recommended_title is a recommended profile display name (<= 30 characters); title_structure explains how to structure the name field; meta_description is a recommended bio (<= 150 characters); current_issues lists only problems visible in the supplied bio/metadata; supporting_content lists content ideas (reels, carousels, posts, stories) specific to the niche.
+"""
+
+SOCIAL_NOTE_COMPETITORS = """
+[source: social_profile]
+The brand is a {platform} account and data_quality is "{quality}". Keep strengths and opportunities to what the public bio supports (at most 3 strengths when data_quality is "limited") and mark anything else "(inferred)".
+"""
 
 DISCLAIMERS = [
     "Competitors are AI-generated suggestions; 'ai_suggestion_homepage_checked' means the competitor's homepage was fetched and used as evidence, not that the comparison was independently verified.",
@@ -238,23 +255,34 @@ class AnalysisService:
         warnings = list(content.warnings)
 
         # ---- stage 1
+        social = content.social
+        profile_note = (
+            SOCIAL_NOTE_PROFILE.format(
+                platform=social.platform, handle_part=f" (@{social.handle})" if social.handle else ""
+            )
+            if social
+            else ""
+        )
         profile_prompt = PROFILE_INSTRUCTIONS.format(
             schema=PROFILE_SCHEMA,
+            source_note=profile_note,
             website=json.dumps(content.to_prompt_payload(), ensure_ascii=False),
         )
         profile = await self._call_validated(ProfileAndInsights, profile_prompt, usage)
         t_stage1 = time.perf_counter()
 
         seo = profile.seo_improvements
-        if seo.meta_description and not (120 <= len(seo.meta_description) <= 160):
+        if not social and seo.meta_description and not (120 <= len(seo.meta_description) <= 160):
             warnings.append(f"meta_description is {len(seo.meta_description)} characters (recommended 140-160).")
-        if len(seo.recommended_title) > 60:
+        if not social and len(seo.recommended_title) > 60:
             warnings.append(f"recommended_title is {len(seo.recommended_title)} characters (recommended <= 60).")
 
         # ---- competitor grounding (no LLM)
         candidates = [c.model_dump() for c in profile.competitor_candidates]
         competitor_ctx = await self.competitors.build_context(candidates, content.final_url)
-        if len(competitor_ctx) < 3:
+        if not competitor_ctx:
+            warnings.append("No comparable competitors could be identified from the available data.")
+        elif len(competitor_ctx) < 3:
             warnings.append(f"Only {len(competitor_ctx)} reliable competitor(s) could be identified (minimum target is 3).")
 
         # ---- stage 2
@@ -265,9 +293,15 @@ class AnalysisService:
             "services": [s.name for s in profile.top_services],
             "target_audience": profile.target_audience.primary_audience,
             "website": content.final_url,
+            "source_type": "social_profile" if social else "website",
+            "data_quality": content.data_quality,
         }
+        comp_note = (
+            SOCIAL_NOTE_COMPETITORS.format(platform=social.platform, quality=content.data_quality) if social else ""
+        )
         comp_prompt = COMPETITOR_INSTRUCTIONS.format(
             schema=COMPETITOR_SCHEMA,
+            source_note=comp_note,
             profile=json.dumps(brand_profile, ensure_ascii=False),
             competitors=json.dumps(competitor_ctx, ensure_ascii=False),
         )
@@ -331,6 +365,9 @@ class AnalysisService:
                 provider=usage["provider"],
                 model=usage["model"],
                 cached=False,
+                source_type="social_profile" if social else "website",
+                platform=social.platform if social else None,
+                data_quality=content.data_quality,
                 latency_ms=total_ms,
                 input_tokens=usage["in"],
                 output_tokens=usage["out"],

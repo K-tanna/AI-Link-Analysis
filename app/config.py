@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # --- LLM ---
-    llm_provider: str = "openai"  # openai | anthropic | gemini
-    llm_model: str = "gpt-6-luna"
+    llm_provider: str = "gemini"  # openai | anthropic | gemini
+    llm_model: str = "gemini-2.5-flash"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     llm_timeout_seconds: float = 90.0
     llm_max_retries: int = 2
-    llm_max_output_tokens: int = 4000
+    llm_max_output_tokens: int = 8192
 
     # Optional per-1M-token prices (USD) so the API can report estimated cost per request
     llm_input_price_per_m: Optional[float] = None

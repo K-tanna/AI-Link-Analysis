@@ -84,6 +84,7 @@ Why two calls instead of one: the comparison step can only be grounded *after* w
 | Prompt leak prevention | Competitor analysis passes through a post-processing sanitizer that removes prompt artifacts like `(based on homepage_checked)` or `[reason]`. |
 | SEO length validation | Generates automated warnings if `recommended_title` > 60 chars or `meta_description` is outside 120–160 chars. |
 | Token & latency optimization | Configurable `GEMINI_THINKING_BUDGET` (`0` disables reasoning tokens, cutting latency by ~60% and saving ~75% output tokens on free tier; `1024` balances reasoning). |
+| Social media profile support | Public social media links (Instagram, X/Twitter, YouTube, LinkedIn, Facebook, Threads, Pinterest, TikTok, Reddit) are auto-detected. Extracts OpenGraph title and bio metadata, adapts SEO to profile discoverability, and handles login walls cleanly with HTTP 422 (`social_profile_unavailable`). |
 
 ## 3. API
 
@@ -141,8 +142,9 @@ Why two calls instead of one: the comparison step can only be grounded *after* w
     }
   },
   "meta": {
-    "provider": "openai", "model": "gpt-6-luna", "cached": false, "latency_ms": 0,
+    "provider": "gemini", "model": "gemini-2.5-flash", "cached": false, "latency_ms": 0,
     "input_tokens": 0, "output_tokens": 0, "estimated_cost_usd": 0.0,
+    "source_type": "website", "platform": null, "data_quality": "good",
     "pages_analyzed": ["https://example.com/", "https://example.com/about"],
     "warnings": [], "disclaimers": ["..."]
   }
@@ -160,6 +162,7 @@ All errors share one shape: `{"success": false, "error": {"code": "...", "messag
 | 422 | `invalid_request` | Body missing `url` or wrong type |
 | 422 | `website_unreachable` | Timeout, connection error, HTTP 4xx/5xx, bot-blocking (403/429/503), non-HTML |
 | 422 | `no_extractable_content` | Page has no readable text (typically JavaScript-only rendering) |
+| 422 | `social_profile_unavailable` | Social platform requires login or did not provide public profile metadata |
 | 502 | `llm_unavailable` | Provider down / auth failed after retries (and fallback, if configured) |
 | 502 | `llm_invalid_output` | Model returned invalid JSON/structure twice |
 | 503 | `llm_not_configured` | No API key for the selected provider |
@@ -186,8 +189,8 @@ curl -s -X POST http://localhost:4000/link-analysis -H "Content-Type: applicatio
 
 ```
 $ pytest -q
-.......................................................                  [100%]
-55 passed
+...........................................................              [100%]
+59 passed
 ```
 
 Covers: SSRF (loopback, RFC1918, metadata IP, IPv6, IPv4-mapped IPv6, CGNAT, private-resolving hostname, redirect-to-private), URL validation, HTML extraction, each provider's response/usage parsing, retries, fallback, and the full endpoint including every error path and cache behaviour.

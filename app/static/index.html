@@ -580,6 +580,7 @@
       <div class="examples">
         <span>Try an example:</span>
         <button type="button" class="example-chip" data-url="https://fastapi.tiangolo.com">fastapi.tiangolo.com</button>
+        <button type="button" class="example-chip" data-url="https://www.instagram.com/crestspot">instagram.com/crestspot</button>
         <button type="button" class="example-chip" data-url="https://stripe.com">stripe.com</button>
         <button type="button" class="example-chip" data-url="https://linear.app">linear.app</button>
         <button type="button" class="example-chip" data-url="https://vercel.com">vercel.com</button>
@@ -791,6 +792,7 @@
             el("div", { class: "brand-name" }, [
               el("span", { text: brand.name || "Analyzed Brand" }),
               brand.category ? el("span", { class: "badge badge-indigo", text: brand.category }) : null,
+              meta.source_type === "social_profile" ? el("span", { class: "badge badge-amber", text: `${meta.platform || "Social"} Profile` }) : null,
               meta.cached ? el("span", { class: "badge badge-green", text: "Cached" }) : null,
             ]),
             websiteLink,

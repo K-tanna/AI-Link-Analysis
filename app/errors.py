@@ -45,3 +45,8 @@ class LLMError(AppError):
 class LLMOutputError(AppError):
     status_code = 502
     code = "llm_invalid_output"
+
+
+class SocialContentUnavailableError(AppError):
+    status_code = 422
+    code = "social_profile_unavailable"

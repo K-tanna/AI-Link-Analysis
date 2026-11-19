@@ -11,7 +11,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.config import Settings
-from app.errors import AppError, EmptyContentError, WebsiteFetchError
+from app.errors import AppError, EmptyContentError, SocialContentUnavailableError, WebsiteFetchError
+from app.utils.social import SocialInfo, detect_social
 from app.utils.validators import validate_public_url
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,8 @@ class ParsedPage:
     title: str = ""
     meta_description: str = ""
     og_site_name: str = ""
+    og_title: str = ""
+    og_description: str = ""
     canonical: str = ""
     lang: str = ""
     headings: list[str] = field(default_factory=list)
@@ -64,9 +67,13 @@ class SiteContent:
     seo_facts: dict
     pages: list[dict]  # [{"url","title","text"}]
     warnings: list[str]
+    og_title: str = ""
+    og_description: str = ""
+    social: Optional[SocialInfo] = None
+    data_quality: str = "good"
 
     def to_prompt_payload(self) -> dict:
-        return {
+        payload = {
             "url": self.final_url,
             "title": self.title,
             "meta_description": self.meta_description,
@@ -79,6 +86,15 @@ class SiteContent:
             "seo_facts": self.seo_facts,
             "pages": self.pages,
         }
+        if self.og_title:
+            payload["og_title"] = self.og_title
+        if self.og_description:
+            payload["og_description"] = self.og_description
+        if self.social:
+            payload["social_profile"] = {"platform": self.social.platform, "handle": self.social.handle}
+            for key in ("seo_facts", "navigation", "headings", "footer_excerpt", "structured_data"):
+                payload.pop(key, None)
+        return payload
 
 
 # ------------------------------------------------------------------ parsing
@@ -113,6 +129,8 @@ def parse_html(url: str, html: str, max_chars: int = 12_000) -> ParsedPage:
 
     page.meta_description = meta("name", "description") or meta("property", "og:description")
     page.og_site_name = meta("property", "og:site_name")
+    page.og_title = meta("property", "og:title")
+    page.og_description = meta("property", "og:description")
     canonical = soup.find("link", rel="canonical")
     page.canonical = canonical.get("href", "") if canonical else ""
     html_tag = soup.find("html")
@@ -239,6 +257,30 @@ def pick_priority_links(page: ParsedPage, limit: int) -> list[str]:
     return out
 
 
+LOGIN_PATH_MARKERS = ("/login", "/accounts/login", "/authwall", "/checkpoint", "/i/flow", "/signin", "/uas/login")
+LOGIN_TEXT_MARKERS = ("log in", "login", "sign up", "sign in", "create an account")
+SOCIAL_EVIDENCE_MIN_CHARS = 40
+SOCIAL_GENERIC_PAGE_CHARS = 120
+SOCIAL_GOOD_QUALITY_CHARS = 1500
+
+
+def _social_unavailable(social: SocialInfo, reason: str) -> SocialContentUnavailableError:
+    return SocialContentUnavailableError(
+        f"{social.platform} did not provide public profile content for this URL ({reason}). "
+        "Social platforms often require a login or block automated requests. "
+        "Try another public profile, or analyse the account's own website instead."
+    )
+
+
+def _is_login_wall(final_url: str, page: ParsedPage, social: SocialInfo, profile_text: str) -> bool:
+    path = urlsplit(final_url).path.lower()
+    if any(marker in path for marker in LOGIN_PATH_MARKERS):
+        return True
+    combined = f"{page.title} {profile_text}".lower()
+    handle_present = bool(social.handle) and social.handle.lower() in combined
+    return not handle_present and any(m in combined for m in LOGIN_TEXT_MARKERS)
+
+
 # ------------------------------------------------------------------ fetching
 class WebsiteExtractor:
     def __init__(self, settings: Settings, transport: Optional[httpx.AsyncBaseTransport] = None):
@@ -304,12 +346,21 @@ class WebsiteExtractor:
 
     async def extract(self, raw_url: str) -> SiteContent:
         url = await validate_public_url(raw_url)
+        social = detect_social(url)
         max_chars = self.settings.max_content_chars
         warnings: list[str] = []
 
         async with self._client() as client:
-            final_url, html = await self.fetch_html(client, url)
+            try:
+                final_url, html = await self.fetch_html(client, url)
+            except WebsiteFetchError as exc:
+                if social:
+                    raise _social_unavailable(social, exc.message.rstrip("."))
+                raise
             home = parse_html(final_url, html, max_chars=max_chars)
+
+            if social:
+                return self._build_social_content(url, final_url, home, social)
 
             extra_urls = pick_priority_links(home, self.settings.max_extra_pages)
 
@@ -353,4 +404,41 @@ class WebsiteExtractor:
             seo_facts=home.seo_facts,
             pages=pages,
             warnings=warnings,
+        )
+
+    def _build_social_content(self, url: str, final_url: str, home: ParsedPage, social: SocialInfo) -> SiteContent:
+        profile_text = "\n".join(
+            part for part in (home.og_title or home.title, home.og_description or home.meta_description) if part
+        )
+        if _is_login_wall(final_url, home, social, profile_text):
+            raise _social_unavailable(social, "the platform sent a login page instead of the profile")
+
+        lines, seen = [], set()
+        for raw in (profile_text + "\n" + home.text).splitlines():
+            line = raw.strip()
+            if line and line.lower() not in seen:
+                seen.add(line.lower())
+                lines.append(line)
+        evidence = "\n".join(lines)
+        evidence_chars = len(evidence)
+        handle_present = bool(social.handle) and social.handle.lower() in evidence.lower()
+        if evidence_chars < SOCIAL_EVIDENCE_MIN_CHARS or (not handle_present and evidence_chars < SOCIAL_GENERIC_PAGE_CHARS):
+            raise _social_unavailable(social, "no public profile information was returned")
+
+        quality = "good" if evidence_chars >= SOCIAL_GOOD_QUALITY_CHARS else "limited"
+        warnings = []
+        if quality == "limited":
+            warnings.append(
+                f"{social.platform} exposes only limited public metadata to automated requests, so this analysis "
+                f"uses just the public profile title/bio text ({evidence_chars} characters). "
+                "Anything beyond the bio is inference."
+            )
+        return SiteContent(
+            url=url, final_url=final_url, title=home.title, meta_description=home.meta_description,
+            og_site_name=home.og_site_name, lang=home.lang, headings=[], nav_links=[], jsonld=[],
+            footer_text="", seo_facts={},
+            pages=[{"url": final_url, "title": home.og_title or home.title,
+                    "text": evidence[: self.settings.max_content_chars]}],
+            warnings=warnings, og_title=home.og_title, og_description=home.og_description,
+            social=social, data_quality=quality,
         )
