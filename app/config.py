@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
+    gemini_thinking_budget: Optional[int] = 0  # 0 to disable thinking (saves tokens/latency), 1024 balanced, -1 unconstrained
 
     # Optional fallback used only if the primary provider fails after retries
     fallback_provider: str = ""

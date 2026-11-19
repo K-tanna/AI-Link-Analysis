@@ -7,6 +7,7 @@ Two LLM calls keep each prompt focused and cheap:
 import copy
 import json
 import logging
+import re
 import time
 from collections import OrderedDict
 from typing import Optional, Type, TypeVar
@@ -73,7 +74,7 @@ Analyse the website data and return JSON with exactly this structure:
 Requirements:
 - top_services: exactly 5, the most important services/products. source="website" only if named or described in the site data, otherwise "inferred".
 - target_search_queries: exactly 5 queries real potential customers would type. Each has 1-3 platforms chosen from [Google, Facebook, Instagram, LinkedIn, X]; across the five queries every platform must appear at least once. Match the phrasing to the platform (e.g. LinkedIn = B2B phrasing, Instagram = inspiration/discovery). No volume numbers.
-- seo_improvements: use seo_facts to make fixes concrete. recommended_title <= 60 characters; meta_description 140-160 characters; 5-8 supporting_content ideas specific to this business.
+- seo_improvements: use seo_facts to make fixes concrete. recommended_title <= 60 characters; meta_description 140-155 characters (count carefully, never exceed 155); 5-8 supporting_content ideas specific to this business.
 - competitor_candidates: 3-5 real competitors (see rules). Do not include the brand itself.
 - target_audience: ground in the site's own language; include geographic_focus only if the site indicates one.
 
@@ -106,6 +107,8 @@ Requirements:
 - Give each competitor concrete strengths and weaknesses/gaps (not generic filler).
 - comparison: one row per aspect (Brand Name, Main Service, Target Market, Key Strength, Opportunity) with a value for your brand and for every competitor.
 - strengths and opportunities must refer to THIS brand's real offering.
+- Write clean prose. Never mention input field names (such as "reason" or "homepage_checked") in your text, and add no source tags. The only allowed annotation is "(inferred)" on a claim the evidence does not support.
+- Proofread: no typos.
 
 <brand_profile>
 {profile}
@@ -120,6 +123,28 @@ DISCLAIMERS = [
     "No search-volume, ranking or traffic data is included: no real data source is integrated, and numbers are never invented.",
     "Services marked source='inferred' are not stated on the analysed pages.",
 ]
+
+
+_LEAK_RE = re.compile(
+    r"\s*[\(\[](?:(?:from|per|based on|source:?)\s+(?:the\s+)?)?(?:reason|homepage[ _]?checked|competitor[ _]?context)[^\)\]]*[\)\]]",
+    re.I,
+)
+
+
+def _clean(text: Optional[str]) -> str:
+    return _LEAK_RE.sub("", text or "").strip()
+
+
+def sanitize_competitor_analysis(comp: CompetitorAnalysis) -> None:
+    comp.strengths = [_clean(x) for x in comp.strengths]
+    comp.opportunities = [_clean(x) for x in comp.opportunities]
+    for c in comp.competitors:
+        c.main_service, c.target_market, c.key_strength = map(_clean, (c.main_service, c.target_market, c.key_strength))
+        c.strengths = [_clean(x) for x in c.strengths]
+        c.weaknesses = [_clean(x) for x in c.weaknesses]
+    for row in comp.comparison:
+        row.your_brand = _clean(row.your_brand)
+        row.competitors = {k: _clean(v) for k, v in row.competitors.items()}
 
 
 class _TTLCache:
@@ -220,6 +245,12 @@ class AnalysisService:
         profile = await self._call_validated(ProfileAndInsights, profile_prompt, usage)
         t_stage1 = time.perf_counter()
 
+        seo = profile.seo_improvements
+        if seo.meta_description and not (120 <= len(seo.meta_description) <= 160):
+            warnings.append(f"meta_description is {len(seo.meta_description)} characters (recommended 140-160).")
+        if len(seo.recommended_title) > 60:
+            warnings.append(f"recommended_title is {len(seo.recommended_title)} characters (recommended <= 60).")
+
         # ---- competitor grounding (no LLM)
         candidates = [c.model_dump() for c in profile.competitor_candidates]
         competitor_ctx = await self.competitors.build_context(candidates, content.final_url)
@@ -242,6 +273,8 @@ class AnalysisService:
         )
         comp = await self._call_validated(CompetitorAnalysis, comp_prompt, usage)
         t_stage2 = time.perf_counter()
+
+        sanitize_competitor_analysis(comp)
 
         # ---- label competitor provenance (set by code, never trusted from the LLM)
         checked = {c["name"].lower(): c["homepage_checked"] for c in competitor_ctx}

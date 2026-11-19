@@ -131,6 +131,13 @@ class GeminiProvider(_Provider):
     name = "gemini"
 
     async def generate(self, client, system, user, max_tokens):
+        gen_config = {
+            "responseMimeType": "application/json",
+            "maxOutputTokens": max_tokens,
+        }
+        if self.settings.gemini_thinking_budget is not None:
+            gen_config["thinkingConfig"] = {"thinkingBudget": self.settings.gemini_thinking_budget}
+
         data = await self._post(
             client,
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
@@ -138,10 +145,7 @@ class GeminiProvider(_Provider):
             {
                 "systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": user}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "maxOutputTokens": max_tokens,
-                },
+                "generationConfig": gen_config,
             },
         )
         try:

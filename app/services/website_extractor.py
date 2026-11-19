@@ -16,10 +16,16 @@ from app.utils.validators import validate_public_url
 
 logger = logging.getLogger(__name__)
 
-PRIORITY_KEYWORDS = (
-    "about", "service", "solution", "product", "what-we-do", "offering",
-    "platform", "feature", "pricing", "industr", "capabilit", "work",
-)
+PRIORITY_KEYWORDS = {
+    "product": 3, "service": 3, "solution": 3, "platform": 3, "feature": 3, "offering": 3,
+    "what-we-do": 2, "whatwedo": 2, "about": 2, "capabilit": 2, "pricing": 1,
+}
+EXCLUDED_SEGMENTS = {
+    "blog", "news", "newsroom", "press", "careers", "jobs", "legal", "privacy", "terms", "support",
+    "help", "login", "signin", "signup", "register", "docs", "guides", "resources", "customers",
+    "customer", "case-studies", "industries", "industry", "use-cases", "partners", "events",
+    "community", "sitemap", "cookie", "contact",
+}
 SKIP_EXTENSIONS = (
     ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".zip",
     ".mp4", ".css", ".js", ".xml", ".ico", ".doc", ".docx",
@@ -194,6 +200,25 @@ def parse_html(url: str, html: str, max_chars: int = 12_000) -> ParsedPage:
     return page
 
 
+def _link_score(path: str, text: str) -> int:
+    segments = [seg for seg in path.lower().split("/") if seg]
+    if not segments or any(
+        seg in EXCLUDED_SEGMENTS or any(seg.startswith(f"{ex}-") or seg.endswith(f"-{ex}") for ex in EXCLUDED_SEGMENTS)
+        for seg in segments
+    ):
+        return 0
+    best = 0
+    for idx, seg in enumerate(segments):
+        last = idx == len(segments) - 1
+        for kw, weight in PRIORITY_KEYWORDS.items():
+            if kw in seg:
+                best = max(best, weight * (2 if last else 1))
+    for kw, weight in PRIORITY_KEYWORDS.items():
+        if kw in text.lower():
+            best = max(best, weight)
+    return best
+
+
 def pick_priority_links(page: ParsedPage, limit: int) -> list[str]:
     home_path = urlsplit(page.url).path.rstrip("/")
     scored: list[tuple[int, str]] = []
@@ -201,8 +226,7 @@ def pick_priority_links(page: ParsedPage, limit: int) -> list[str]:
         path = urlsplit(link).path.rstrip("/")
         if path == home_path or path.count("/") > 3:
             continue
-        haystack = f"{path} {text}".lower()
-        score = sum(1 for k in PRIORITY_KEYWORDS if k in haystack)
+        score = _link_score(path, text)
         if score:
             scored.append((score, link))
     scored.sort(key=lambda x: (-x[0], len(x[1])))
