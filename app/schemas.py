@@ -14,8 +14,8 @@ def _as_list(value: Any) -> list:
 
 StrList = Annotated[list[str], BeforeValidator(_as_list)]
 
-PLATFORMS = ("Google", "Facebook", "Instagram", "LinkedIn", "X")
-Platform = Literal["Google", "Facebook", "Instagram", "LinkedIn", "X"]
+PLATFORMS = ("Google", "Facebook", "Instagram", "LinkedIn", "X", "YouTube", "TikTok", "Pinterest", "Reddit")
+Platform = Literal["Google", "Facebook", "Instagram", "LinkedIn", "X", "YouTube", "TikTok", "Pinterest", "Reddit"]
 
 _PLATFORM_ALIASES = {
     "google": "Google",
@@ -27,6 +27,12 @@ _PLATFORM_ALIASES = {
     "twitter": "X",
     "x (twitter)": "X",
     "x/twitter": "X",
+    "youtube": "YouTube",
+    "yt": "YouTube",
+    "youtube search": "YouTube",
+    "tiktok": "TikTok",
+    "pinterest": "Pinterest",
+    "reddit": "Reddit",
 }
 
 
@@ -97,9 +103,11 @@ class SearchQuery(_Model):
         out: list = []
         for p in v:
             p = _normalize_platform(p)
+            if p not in PLATFORMS:
+                p = "YouTube" if "youtube" in str(p).lower() else "Google"
             if p not in out:
                 out.append(p)
-        return out
+        return out or ["Google"]
 
 
 class SupportingContent(_Model):

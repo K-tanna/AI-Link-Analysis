@@ -11,18 +11,18 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     llm_provider: str = "gemini"  # openai | anthropic | gemini
-    llm_model: str = "gemini-2.5-flash"
+    llm_model: str = "gemini-flash-lite-latest"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
     gemini_thinking_budget: Optional[int] = 0  # 0 to disable thinking (saves tokens/latency), 1024 balanced, -1 unconstrained
 
     # Optional fallback used only if the primary provider fails after retries
-    fallback_provider: str = ""
-    fallback_model: str = ""
+    fallback_provider: str = "gemini"
+    fallback_model: str = "gemini-3.1-flash-lite"
 
     llm_timeout_seconds: float = 90.0
-    llm_max_retries: int = 2
+    llm_max_retries: int = 3
     llm_max_output_tokens: int = 8192
 
     # Optional per-1M-token prices (USD) so the API can report estimated cost per request

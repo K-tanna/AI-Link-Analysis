@@ -135,19 +135,26 @@ class GeminiProvider(_Provider):
             "responseMimeType": "application/json",
             "maxOutputTokens": max_tokens,
         }
-        if self.settings.gemini_thinking_budget is not None:
+        if self.settings.gemini_thinking_budget is not None and "2.5" in self.model:
             gen_config["thinkingConfig"] = {"thinkingBudget": self.settings.gemini_thinking_budget}
 
-        data = await self._post(
-            client,
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
-            {"x-goog-api-key": self.api_key},
-            {
-                "systemInstruction": {"parts": [{"text": system}]},
-                "contents": [{"role": "user", "parts": [{"text": user}]}],
-                "generationConfig": gen_config,
-            },
-        )
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        headers = {"x-goog-api-key": self.api_key}
+        payload = {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "generationConfig": gen_config,
+        }
+
+        try:
+            data = await self._post(client, url, headers, payload)
+        except LLMError as exc:
+            if "thinkingConfig" in gen_config and "invalid argument" in exc.message.lower():
+                gen_config.pop("thinkingConfig", None)
+                data = await self._post(client, url, headers, payload)
+            else:
+                raise
+
         try:
             parts = data["candidates"][0]["content"]["parts"]
         except (KeyError, IndexError, TypeError):
