@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Website Link Analysis</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-light: #64748b;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-soft: #eef2ff;
+      --green: #059669;
+      --green-soft: #ecfdf5;
+      --amber: #d97706;
+      --amber-soft: #fffbeb;
+      --red: #dc2626;
+      --red-soft: #fef2f2;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 4px 10px -4px rgba(15, 23, 42, 0.04);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.875rem;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .status-dot.ok { background: var(--green); }
+    .status-dot.err { background: var(--red); }
+    .docs-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .docs-link:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    /* Main container */
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 72px;
+    }
+
+    /* Hero search */
+    .hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: 1.6rem;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+    }
+    .search-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .url-input {
+      flex: 1 1 320px;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.98rem;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .url-input:focus {
+      border-color: var(--primary);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      font-size: 0.85rem;
+    }
+    .btn-secondary:hover { background: var(--surface-2); }
+
+    .examples {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: var(--text-light);
+    }
+    .example-chip {
+      background: var(--surface-2);
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .example-chip:hover {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border-color: #c7d2fe;
+    }
+
+    /* Loading */
+    .loading-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-weight: 650; font-size: 1.05rem; margin-bottom: 4px; }
+    .loading-sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 18px; }
+    .steps {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .step {
+      font-size: 0.8rem;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text-light);
+      transition: all 0.25s;
+    }
+    .step.active {
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .step.done {
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 500;
+    }
+
+    /* Error */
+    .error-banner {
+      background: var(--red-soft);
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+    .error-code {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      background: #fee2e2;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    /* Results */
+    .brand-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+    .brand-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .brand-name {
+      font-size: 1.45rem;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .badge-indigo { background: var(--primary-soft); color: var(--primary); }
+    .badge-green { background: var(--green-soft); color: var(--green); }
+    .badge-amber { background: var(--amber-soft); color: var(--amber); }
+    .badge-slate { background: var(--surface-2); color: var(--text-muted); }
+    .brand-url {
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.88rem;
+      display: inline-block;
+      margin-top: 2px;
+    }
+    .brand-url:hover { text-decoration: underline; }
+    .brand-summary {
+      color: var(--text-muted);
+      font-size: 0.96rem;
+      margin-bottom: 16px;
+    }
+    .brand-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .meta-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--text-light);
+    }
+    .meta-strip strong { color: var(--text); font-weight: 600; }
+
+    .warnings-box {
+      background: var(--amber-soft);
+      border: 1px solid #fde68a;
+      color: #92400e;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 0.86rem;
+      margin-bottom: 20px;
+    }
+    .warnings-box ul { margin-left: 18px; margin-top: 4px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -3px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* Section cards & grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .card h4 {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-light);
+      margin: 12px 0 6px;
+    }
+    .card p { font-size: 0.9rem; color: var(--text-muted); }
+    .clean-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+    .clean-list li {
+      position: relative;
+      padding-left: 16px;
+    }
+    .clean-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .clean-list.good li::before { content: "+"; color: var(--green); }
+    .clean-list.bad li::before { content: "−"; color: var(--red); }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .pill-primary {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border-color: #c7d2fe;
+      font-weight: 600;
+    }
+
+    /* Platform colors */
+    .plat { font-size: 0.74rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+    .plat-Google { background: #e0f2fe; color: #0369a1; }
+    .plat-LinkedIn { background: #dbeafe; color: #1d4ed8; }
+    .plat-Instagram { background: #fce7f3; color: #be185d; }
+    .plat-Facebook { background: #eff6ff; color: #1e40af; }
+    .plat-X { background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: var(--surface-2);
+      font-weight: 650;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    .col-brand { background: #f8faff; font-weight: 500; }
+
+    /* SERP preview */
+    .serp-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      max-width: 640px;
+      margin-bottom: 12px;
+    }
+    .serp-url { font-size: 0.8rem; color: #202124; margin-bottom: 2px; }
+    .serp-title { font-size: 1.15rem; color: #1a0dab; font-weight: 500; line-height: 1.3; margin-bottom: 4px; }
+    .serp-desc { font-size: 0.88rem; color: #4d5156; line-height: 1.45; }
+
+    /* Raw JSON */
+    pre.json-pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      max-height: 620px;
+    }
+
+    .disclaimers {
+      margin-top: 24px;
+      padding: 14px 18px;
+      background: var(--surface-2);
+      border-radius: 10px;
+      font-size: 0.8rem;
+      color: var(--text-light);
+    }
+    .disclaimers ul { margin-left: 16px; margin-top: 4px; }
+
+    .hidden { display: none !important; }
+    .kv { font-size: 0.86rem; color: var(--text-muted); margin-top: 6px; }
+    .kv strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">LA</div>
+        <span>AI Link Analysis</span>
+      </div>
+      <div class="header-actions">
+        <div class="status-pill" id="apiStatus">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Checking API…</span>
+        </div>
+        <a class="docs-link" href="/docs" target="_blank" rel="noopener">Swagger Docs</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Analyze any website with AI</h1>
+      <p>Fetches real website content, checks competitor homepages, and generates structured competitor, search-query, SEO, services, and audience insights.</p>
+      <form class="search-form" id="analyzeForm">
+        <input
+          type="text"
+          id="urlInput"
+          class="url-input"
+          placeholder="Enter a website URL (e.g. https://stripe.com or fastapi.tiangolo.com)"
+          required
+        />
+        <button type="submit" class="btn btn-primary" id="submitBtn">Analyze Website</button>
+      </form>
+      <div class="examples">
+        <span>Try an example:</span>
+        <button type="button" class="example-chip" data-url="https://fastapi.tiangolo.com">fastapi.tiangolo.com</button>
+        <button type="button" class="example-chip" data-url="https://stripe.com">stripe.com</button>
+        <button type="button" class="example-chip" data-url="https://linear.app">linear.app</button>
+        <button type="button" class="example-chip" data-url="https://vercel.com">vercel.com</button>
+      </div>
+    </section>
+
+    <section class="loading-card hidden" id="loadingCard">
+      <div class="spinner"></div>
+      <div class="loading-title" id="loadingTitle">Analyzing website…</div>
+      <div class="loading-sub" id="loadingSub">This runs a 2-stage AI analysis + competitor homepage checks (typically 20–50 seconds). Elapsed: <strong id="elapsedSec">0s</strong></div>
+      <div class="steps" id="loadingSteps">
+        <span class="step active" data-step="0">1. Fetch &amp; clean pages</span>
+        <span class="step" data-step="1">2. Profile, SEO &amp; services</span>
+        <span class="step" data-step="2">3. Ground competitors</span>
+        <span class="step" data-step="3">4. Competitor comparison</span>
+      </div>
+    </section>
+
+    <section class="error-banner hidden" id="errorBox">
+      <div class="error-code" id="errorCode"></div>
+      <div id="errorMsg"></div>
+    </section>
+
+    <section id="resultsSection" class="hidden">
+      <div class="brand-card" id="brandCard"></div>
+      <div class="warnings-box hidden" id="warningsBox"></div>
+
+      <div class="tabs" id="tabsBar">
+        <button type="button" class="tab-btn active" data-tab="competitors">Competitors</button>
+        <button type="button" class="tab-btn" data-tab="queries">Search Queries</button>
+        <button type="button" class="tab-btn" data-tab="seo">SEO Improvements</button>
+        <button type="button" class="tab-btn" data-tab="services">Top Services</button>
+        <button type="button" class="tab-btn" data-tab="audience">Target Audience</button>
+        <button type="button" class="tab-btn" data-tab="json">Raw JSON</button>
+      </div>
+
+      <div id="tabContent"></div>
+      <div class="disclaimers hidden" id="disclaimersBox"></div>
+    </section>
+  </main>
+
+  <script>
+    let currentData = null;
+    let activeTab = "competitors";
+    let timerId = null;
+
+    // Safe DOM helper (prevents XSS from scraped website text)
+    function el(tag, attrs = {}, children = []) {
+      const node = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v === null || v === undefined) continue;
+        if (k === "class") node.className = v;
+        else if (k === "text") node.textContent = String(v);
+        else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, String(v));
+      }
+      for (const child of (Array.isArray(children) ? children : [children])) {
+        if (child === null || child === undefined) continue;
+        node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+      }
+      return node;
+    }
+
+    function safeHref(url) {
+      if (!url) return null;
+      try {
+        const u = new URL(url);
+        if (u.protocol === "http:" || u.protocol === "https:") return u.href;
+      } catch {}
+      return null;
+    }
+
+    // Check API health
+    async function checkHealth() {
+      const dot = document.getElementById("statusDot");
+      const text = document.getElementById("statusText");
+      try {
+        const res = await fetch("/health");
+        if (res.ok) {
+          dot.className = "status-dot ok";
+          text.textContent = "API Online";
+          return;
+        }
+      } catch {}
+      dot.className = "status-dot err";
+      text.textContent = "API Offline";
+    }
+    checkHealth();
+
+    // Example chips
+    document.querySelectorAll(".example-chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("urlInput").value = btn.dataset.url;
+        document.getElementById("analyzeForm").requestSubmit();
+      });
+    });
+
+    // Tab switching
+    document.getElementById("tabsBar").addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab-btn");
+      if (!btn || !currentData) return;
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderActiveTab();
+    });
+
+    function startLoading(url) {
+      document.getElementById("errorBox").classList.add("hidden");
+      document.getElementById("resultsSection").classList.add("hidden");
+      document.getElementById("loadingCard").classList.remove("hidden");
+      document.getElementById("loadingTitle").textContent = `Analyzing ${url}…`;
+      document.getElementById("submitBtn").disabled = true;
+      document.getElementById("submitBtn").textContent = "Analyzing…";
+
+      const started = Date.now();
+      const steps = document.querySelectorAll("#loadingSteps .step");
+      const update = () => {
+        const sec = Math.floor((Date.now() - started) / 1000);
+        document.getElementById("elapsedSec").textContent = `${sec}s`;
+        const idx = sec < 4 ? 0 : sec < 18 ? 1 : sec < 24 ? 2 : 3;
+        steps.forEach((s, i) => {
+          s.classList.toggle("done", i < idx);
+          s.classList.toggle("active", i === idx);
+        });
+      };
+      update();
+      timerId = setInterval(update, 1000);
+    }
+
+    function stopLoading() {
+      if (timerId) clearInterval(timerId);
+      timerId = null;
+      document.getElementById("loadingCard").classList.add("hidden");
+      document.getElementById("submitBtn").disabled = false;
+      document.getElementById("submitBtn").textContent = "Analyze Website";
+    }
+
+    function showError(code, message) {
+      document.getElementById("errorCode").textContent = code || "error";
+      document.getElementById("errorMsg").textContent = message || "Something went wrong.";
+      document.getElementById("errorBox").classList.remove("hidden");
+    }
+
+    // Submit form
+    document.getElementById("analyzeForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = document.getElementById("urlInput").value.trim();
+      if (!url) return;
+      startLoading(url);
+      try {
+        const res = await fetch("/link-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        stopLoading();
+        if (!res.ok || !data.success) {
+          const err = data.error || {};
+          showError(err.code || `HTTP ${res.status}`, err.message || "Request failed.");
+          return;
+        }
+        currentData = data;
+        renderResults();
+      } catch (err) {
+        stopLoading();
+        showError("network_error", `Could not reach the API server: ${err.message}`);
+      }
+    });
+
+    function renderResults() {
+      const { website, brand, analysis, meta } = currentData;
+      const brandCard = document.getElementById("brandCard");
+      brandCard.innerHTML = "";
+
+      const copyBtn = el("button", {
+        type: "button",
+        class: "btn btn-secondary",
+        text: "Copy JSON",
+        onclick: async () => {
+          await navigator.clipboard.writeText(JSON.stringify(currentData, null, 2));
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => (copyBtn.textContent = "Copy JSON"), 1600);
+        },
+      });
+
+      const downloadBtn = el("button", {
+        type: "button",
+        class: "btn btn-secondary",
+        text: "Download JSON",
+        onclick: () => {
+          const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: "application/json" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          const slug = (brand.name || "analysis").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          a.download = `${slug}-link-analysis.json`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        },
+      });
+
+      const websiteLink = safeHref(website)
+        ? el("a", { class: "brand-url", href: safeHref(website), target: "_blank", rel: "noopener", text: website })
+        : el("span", { class: "brand-url", text: website });
+
+      brandCard.appendChild(
+        el("div", { class: "brand-top" }, [
+          el("div", {}, [
+            el("div", { class: "brand-name" }, [
+              el("span", { text: brand.name || "Analyzed Brand" }),
+              brand.category ? el("span", { class: "badge badge-indigo", text: brand.category }) : null,
+              meta.cached ? el("span", { class: "badge badge-green", text: "Cached" }) : null,
+            ]),
+            websiteLink,
+          ]),
+          el("div", { class: "brand-actions" }, [copyBtn, downloadBtn]),
+        ])
+      );
+
+      if (brand.summary) {
+        brandCard.appendChild(el("p", { class: "brand-summary", text: brand.summary }));
+      }
+
+      const latency = meta.latency_ms >= 1000 ? `${(meta.latency_ms / 1000).toFixed(1)}s` : `${meta.latency_ms}ms`;
+      const metaItems = [
+        ["Model", `${meta.provider} / ${meta.model}`],
+        ["Latency", latency],
+        ["Tokens", `${(meta.input_tokens || 0).toLocaleString()} in / ${(meta.output_tokens || 0).toLocaleString()} out`],
+        ["Pages Analyzed", `${(meta.pages_analyzed || []).length}`],
+      ];
+      if (meta.estimated_cost_usd !== null && meta.estimated_cost_usd !== undefined) {
+        metaItems.push(["Est. Cost", `$${Number(meta.estimated_cost_usd).toFixed(4)}`]);
+      }
+
+      brandCard.appendChild(
+        el(
+          "div",
+          { class: "meta-strip" },
+          metaItems.map(([k, v]) => el("span", {}, [`${k}: `, el("strong", { text: v })]))
+        )
+      );
+
+      // Warnings
+      const warnBox = document.getElementById("warningsBox");
+      if (meta.warnings && meta.warnings.length) {
+        warnBox.innerHTML = "";
+        warnBox.appendChild(el("strong", { text: "Warnings" }));
+        warnBox.appendChild(el("ul", {}, meta.warnings.map((w) => el("li", { text: w }))));
+        warnBox.classList.remove("hidden");
+      } else {
+        warnBox.classList.add("hidden");
+      }
+
+      // Disclaimers
+      const discBox = document.getElementById("disclaimersBox");
+      if (meta.disclaimers && meta.disclaimers.length) {
+        discBox.innerHTML = "";
+        discBox.appendChild(el("strong", { text: "Notes & Disclaimers" }));
+        discBox.appendChild(el("ul", {}, meta.disclaimers.map((d) => el("li", { text: d }))));
+        discBox.classList.remove("hidden");
+      } else {
+        discBox.classList.add("hidden");
+      }
+
+      // Update tab counts
+      document.querySelector('[data-tab="competitors"]').textContent = `Competitors (${(analysis.competitor_analysis.competitors || []).length})`;
+      document.querySelector('[data-tab="queries"]').textContent = `Search Queries (${(analysis.target_search_queries || []).length})`;
+      document.querySelector('[data-tab="services"]').textContent = `Top Services (${(analysis.top_services || []).length})`;
+
+      document.getElementById("resultsSection").classList.remove("hidden");
+      renderActiveTab();
+    }
+
+    function renderActiveTab() {
+      const container = document.getElementById("tabContent");
+      container.innerHTML = "";
+      const { analysis } = currentData;
+
+      if (activeTab === "competitors") renderCompetitors(container, analysis.competitor_analysis);
+      else if (activeTab === "queries") renderQueries(container, analysis.target_search_queries);
+      else if (activeTab === "seo") renderSEO(container, analysis.seo_improvements, currentData.website);
+      else if (activeTab === "services") renderServices(container, analysis.top_services);
+      else if (activeTab === "audience") renderAudience(container, analysis.target_audience);
+      else if (activeTab === "json") {
+        container.appendChild(el("pre", { class: "json-pre", text: JSON.stringify(currentData, null, 2) }));
+      }
+    }
+
+    function renderCompetitors(container, comp) {
+      // Strengths & Opportunities
+      container.appendChild(
+        el("div", { class: "grid-2" }, [
+          el("div", { class: "card" }, [
+            el("h3", { text: "Your Competitive Strengths" }),
+            el("ul", { class: "clean-list good" }, (comp.strengths || []).map((s) => el("li", { text: s }))),
+          ]),
+          el("div", { class: "card" }, [
+            el("h3", { text: "Positioning Opportunities" }),
+            el("ul", { class: "clean-list" }, (comp.opportunities || []).map((o) => el("li", { text: o }))),
+          ]),
+        ])
+      );
+
+      // Comparison table
+      if (comp.comparison && comp.comparison.length) {
+        const compNames = [];
+        for (const row of comp.comparison) {
+          for (const name of Object.keys(row.competitors || {})) {
+            if (!compNames.includes(name)) compNames.push(name);
+          }
+        }
+        const thead = el("thead", {}, [
+          el("tr", {}, [
+            el("th", { text: "Aspect" }),
+            el("th", { text: comp.brand_name || "Your Brand" }),
+            ...compNames.map((n) => el("th", { text: n })),
+          ]),
+        ]);
+        const tbody = el(
+          "tbody",
+          {},
+          comp.comparison.map((row) =>
+            el("tr", {}, [
+              el("td", {}, [el("strong", { text: row.aspect })]),
+              el("td", { class: "col-brand", text: row.your_brand || "—" }),
+              ...compNames.map((n) => el("td", { text: (row.competitors && row.competitors[n]) || "—" })),
+            ])
+          )
+        );
+        container.appendChild(el("div", { class: "table-wrap" }, [el("table", {}, [thead, tbody])]));
+      }
+
+      // Competitor cards
+      const grid = el("div", { class: "grid-2" });
+      for (const c of comp.competitors || []) {
+        const checked = c.source === "ai_suggestion_homepage_checked";
+        const link = safeHref(c.website)
+          ? el("a", { class: "brand-url", href: safeHref(c.website), target: "_blank", rel: "noopener", text: c.website })
+          : null;
+
+        grid.appendChild(
+          el("div", { class: "card" }, [
+            el("h3", {}, [
+              el("span", { text: c.name }),
+              el("span", {
+                class: `badge ${checked ? "badge-green" : "badge-slate"}`,
+                text: checked ? "Homepage Checked" : "AI Suggestion",
+              }),
+            ]),
+            link,
+            c.main_service ? el("div", { class: "kv" }, [el("strong", { text: "Main Service: " }), c.main_service]) : null,
+            c.target_market ? el("div", { class: "kv" }, [el("strong", { text: "Target Market: " }), c.target_market]) : null,
+            c.key_strength ? el("div", { class: "kv" }, [el("strong", { text: "Key Strength: " }), c.key_strength]) : null,
+            c.strengths && c.strengths.length ? el("h4", { text: "Strengths" }) : null,
+            c.strengths && c.strengths.length
+              ? el("ul", { class: "clean-list good" }, c.strengths.map((s) => el("li", { text: s })))
+              : null,
+            c.weaknesses && c.weaknesses.length ? el("h4", { text: "Weaknesses / Gaps" }) : null,
+            c.weaknesses && c.weaknesses.length
+              ? el("ul", { class: "clean-list bad" }, c.weaknesses.map((w) => el("li", { text: w })))
+              : null,
+          ])
+        );
+      }
+      container.appendChild(grid);
+    }
+
+    function renderQueries(container, queries) {
+      const grid = el("div", { class: "grid-2" });
+      (queries || []).forEach((q, i) => {
+        grid.appendChild(
+          el("div", { class: "card" }, [
+            el("h3", {}, [
+              el("span", { text: `${i + 1}. "${q.query}"` }),
+              q.intent ? el("span", { class: "badge badge-slate", text: q.intent }) : null,
+            ]),
+            el(
+              "div",
+              { class: "pills", style: "margin-bottom: 10px;" },
+              (q.platforms || []).map((p) => el("span", { class: `plat plat-${p}`, text: p }))
+            ),
+            q.target_audience ? el("div", { class: "kv" }, [el("strong", { text: "Target Audience: " }), q.target_audience]) : null,
+            q.business_relevance ? el("div", { class: "kv" }, [el("strong", { text: "Business Relevance: " }), q.business_relevance]) : null,
+          ])
+        );
+      });
+      container.appendChild(grid);
+    }
+
+    function renderSEO(container, seo, website) {
+      // SERP Preview + Meta
+      const titleLen = (seo.recommended_title || "").length;
+      const descLen = (seo.meta_description || "").length;
+      container.appendChild(
+        el("div", { class: "card", style: "margin-bottom: 16px;" }, [
+          el("h3", {}, [
+            el("span", { text: "Recommended Search Snippet (SERP Preview)" }),
+            el("div", { class: "pills" }, [
+              el("span", {
+                class: `badge ${titleLen <= 60 ? "badge-green" : "badge-amber"}`,
+                text: `Title: ${titleLen} chars`,
+              }),
+              el("span", {
+                class: `badge ${descLen >= 120 && descLen <= 165 ? "badge-green" : "badge-amber"}`,
+                text: `Meta: ${descLen} chars`,
+              }),
+            ]),
+          ]),
+          el("div", { class: "serp-box" }, [
+            el("div", { class: "serp-url", text: website }),
+            el("div", { class: "serp-title", text: seo.recommended_title || "—" }),
+            el("div", { class: "serp-desc", text: seo.meta_description || "—" }),
+          ]),
+          seo.title_structure ? el("div", { class: "kv" }, [el("strong", { text: "Title Structure: " }), seo.title_structure]) : null,
+        ])
+      );
+
+      // Keywords & Issues
+      container.appendChild(
+        el("div", { class: "grid-2" }, [
+          el("div", { class: "card" }, [
+            el("h3", { text: "Target Keywords" }),
+            el("h4", { text: "Primary Keyword" }),
+            el("div", { class: "pills" }, [el("span", { class: "pill pill-primary", text: seo.primary_keyword || "—" })]),
+            el("h4", { text: "Secondary Keywords" }),
+            el("div", { class: "pills" }, (seo.secondary_keywords || []).map((k) => el("span", { class: "pill", text: k }))),
+            el("h4", { text: "Long-Tail Keywords" }),
+            el("div", { class: "pills" }, (seo.long_tail_keywords || []).map((k) => el("span", { class: "pill", text: k }))),
+            el("h4", { text: "Business Keywords" }),
+            el("div", { class: "pills" }, (seo.business_keywords || []).map((k) => el("span", { class: "pill", text: k }))),
+          ]),
+          el("div", { class: "card" }, [
+            el("h3", { text: "Current On-Page Issues" }),
+            (seo.current_issues && seo.current_issues.length)
+              ? el("ul", { class: "clean-list bad" }, seo.current_issues.map((i) => el("li", { text: i })))
+              : el("p", { text: "No major on-page issues detected." }),
+          ]),
+        ])
+      );
+
+      // Supporting content
+      if (seo.supporting_content && seo.supporting_content.length) {
+        const scGrid = el("div", { class: "grid-3" });
+        for (const item of seo.supporting_content) {
+          scGrid.appendChild(
+            el("div", { class: "card" }, [
+              el("h3", {}, [
+                el("span", { text: item.title }),
+                item.type ? el("span", { class: "badge badge-indigo", text: item.type }) : null,
+              ]),
+              el("p", { text: item.rationale || "" }),
+            ])
+          );
+        }
+        container.appendChild(el("h3", { style: "margin: 6px 0 12px; font-size: 1.05rem;", text: "Supporting Content Ideas" }));
+        container.appendChild(scGrid);
+      }
+    }
+
+    function renderServices(container, services) {
+      const grid = el("div", { class: "grid-2" });
+      (services || []).forEach((s, i) => {
+        const fromSite = s.source === "website";
+        grid.appendChild(
+          el("div", { class: "card" }, [
+            el("h3", {}, [
+              el("span", { text: `${i + 1}. ${s.name}` }),
+              el("span", {
+                class: `badge ${fromSite ? "badge-green" : "badge-amber"}`,
+                text: fromSite ? "From Website" : "Inferred",
+              }),
+            ]),
+            s.description ? el("p", { text: s.description, style: "margin-bottom: 10px;" }) : null,
+            s.target_industry ? el("div", { class: "kv" }, [el("strong", { text: "Target Industry: " }), s.target_industry]) : null,
+            s.target_customer ? el("div", { class: "kv" }, [el("strong", { text: "Target Customer: " }), s.target_customer]) : null,
+            s.main_benefit ? el("div", { class: "kv" }, [el("strong", { text: "Main Benefit: " }), s.main_benefit]) : null,
+          ])
+        );
+      });
+      container.appendChild(grid);
+    }
+
+    function renderAudience(container, aud) {
+      const sections = [
+        ["Primary Audience", aud.primary_audience],
+        ["Secondary Audience", aud.secondary_audience],
+        ["Industries", aud.industries],
+        ["Business Types", aud.business_types],
+        ["Customer Profiles", aud.customer_profiles],
+        ["Geographic Focus", aud.geographic_focus],
+        ["Customer Needs", aud.customer_needs],
+        ["Customer Interests", aud.customer_interests],
+        ["Recommended Segments", aud.recommended_segments],
+      ];
+      const grid = el("div", { class: "grid-3" });
+      for (const [label, items] of sections) {
+        grid.appendChild(
+          el("div", { class: "card" }, [
+            el("h3", { text: label }),
+            items && items.length
+              ? el("div", { class: "pills" }, items.map((x) => el("span", { class: "pill", text: x })))
+              : el("p", { text: "Not specified on site." }),
+          ])
+        );
+      }
+      container.appendChild(grid);
+    }
+  </script>
+</body>
+</html>
+
